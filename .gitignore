@@ -1,0 +1,39 @@
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+*.db
+*.sqlite3
+*.egg-info/
+
+# Virtual environments
+.env
+.venv
+venv/
+ENV/
+
+# Config / secrets
+config/*.cfg
+!config/users.cfg
+
+# Logs
+*.log
+
+# Docker
+*.pid
+*.seed
+*.pid.lock
+docker-compose.override.yml
+README.Docker-local.md
+
+# IDE / editor
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db

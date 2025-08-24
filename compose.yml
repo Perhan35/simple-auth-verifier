@@ -1,0 +1,28 @@
+services:
+  simple-auth-verifier-alpine:
+    build: 
+      context: .
+      dockerfile: Dockerfile-alpine
+    container_name: simple-auth-verifier-alpine
+    restart: unless-stopped
+    volumes:
+      - ./config:/app/config:ro
+    environment:
+      - RELOAD_SECRET=supersecret
+      - CONFIG_FILE=/app/config/users.cfg
+    ports:
+      - "8000:8000"
+
+  simple-auth-verifier-slim:
+    build: 
+      context: .
+      dockerfile: Dockerfile-slim
+    container_name: simple-auth-verifier-slim
+    restart: unless-stopped
+    volumes:
+      - ./config:/app/config:ro
+    environment:
+      - RELOAD_SECRET=supersecret
+      - CONFIG_FILE=/app/config/users.cfg
+    ports:
+      - "8001:8000"
