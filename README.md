@@ -22,8 +22,10 @@ Admins keep a simple `user:base64token` config file; clients compute `sha256("us
 .
 ├─ main.py
 ├─ requirements.txt
-├─ Dockerfile
+├─ Dockerfile-slim
+├─ Dockerfile-alpine
 ├─ docker-compose.yml
+├─ ...
 └─ config/
    └─ users.cfg              # example config file
 ```
