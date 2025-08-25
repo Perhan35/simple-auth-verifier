@@ -9,7 +9,7 @@ from collections import defaultdict
 from typing import Dict
 
 from fastapi import FastAPI, Request, Response, status, Query
-from fastapi.responses import PlainTextResponse, JSONResponse
+from fastapi.responses import PlainTextResponse, JSONResponse, RedirectResponse
 
 # ----------------------------
 # Logging setup
@@ -83,6 +83,10 @@ def compute_hash_hex(user: str, token: str) -> str:
     h.update(token.encode("utf-8"))
     return h.hexdigest()
 
+def hash_token(username: str, token: str) -> str:
+    """Return a SHA256 hash of username + token."""
+    combined = f"{username}:{token}"
+    return hashlib.sha256(combined.encode("utf-8")).hexdigest()
 
 def load_config(path: str) -> None:
     """
@@ -135,6 +139,15 @@ async def on_startup():
 # ----------------------------
 # Endpoints
 # ----------------------------
+@APP.get("/")
+async def root_redirect():
+    """Redirect base URL `/` to `/health`."""
+    return RedirectResponse(url="/health", status_code=308)
+
+@APP.get("/health")
+async def health():
+    return PlainTextResponse("Simple Auth Server is running", status_code=200)
+
 @APP.api_route("/verify", methods=["GET", "POST", "PUT", "PATCH", "DELETE", "HEAD", "OPTIONS"])
 async def verify(request: Request):
     """
@@ -149,18 +162,21 @@ async def verify(request: Request):
     if not auth:
         delay = record_failed_attempt(client_ip)
         await asyncio.sleep(delay)
+        LOG.info("Missing Authorization header from %s", client_ip)
         return Response(status_code=status.HTTP_401_UNAUTHORIZED)
 
     parts = auth.split(None, 1)
     if len(parts) != 2 or parts[0].lower() != "bearer":
         delay = record_failed_attempt(client_ip)
         await asyncio.sleep(delay)
+        LOG.info("Invalid Bearer token from %s: %r", client_ip, auth)
         return Response(status_code=status.HTTP_401_UNAUTHORIZED)
 
     client_hash = parts[1].strip().lower()
     if not client_hash:
         delay = record_failed_attempt(client_ip)
         await asyncio.sleep(delay)
+        LOG.info("Invalid client hash %s", client_ip)
         return Response(status_code=status.HTTP_401_UNAUTHORIZED)
 
     # Fast path: dictionary lookup (O(1))
@@ -177,12 +193,8 @@ async def verify(request: Request):
     # Failed attempt: record and backoff
     delay = record_failed_attempt(client_ip)
     await asyncio.sleep(delay)
+    LOG.info("Unauthorized access attempt from %s with hash %r", client_ip, client_hash)
     return Response(status_code=status.HTTP_401_UNAUTHORIZED)
-
-
-@APP.get("/health")
-async def health():
-    return PlainTextResponse("Simple Auth Server is running", status_code=200)
 
 
 @APP.api_route("/reload-config", methods=["GET", "POST"])
@@ -208,3 +220,20 @@ async def reload_config(request: Request, secret: str | None = Query(None)):
 
     load_config(CONFIG_FILE)
     return {"loaded_users": len(USER_TO_TOKEN)}
+
+@APP.get("/hash")
+async def generate_hash(
+    user: str = Query(..., description="The username"),
+    token: str = Query(..., description="The token"),
+    secret: str = Query(..., description="The reload secret")
+):
+    """Generate a hash for a username and token.
+    Protected with RELOAD_SECRET.
+    """
+    if RELOAD_SECRET:
+        provided = secret or ""
+        if not provided or not hmac.compare_digest(provided, RELOAD_SECRET):
+            return JSONResponse({"error": "forbidden"}, status_code=403)
+
+    hashed = hash_token(user, token)
+    return {"username": user, "hash": hashed}
