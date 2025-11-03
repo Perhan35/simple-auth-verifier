@@ -9,7 +9,7 @@ Admins keep a simple `user:token` config file; clients compute `sha256("user:tok
 
 ## Features
 
-- Precomputes `sha256(user:token)` at startup for O(1) verification lookups.
+- Precomputes `sha256(user:token)` at startup for fast verification lookups.
 - Exposes:
   - `POST/GET /verify` — Traefik ForwardAuth endpoint (accepts common HTTP methods).
   - `GET /health` — simple health check.
@@ -36,53 +36,6 @@ Admins keep a simple `user:token` config file; clients compute `sha256("user:tok
 
 ---
 
-## Quickstart (local, development)
-
-1. Clone the repo:
-
-```bash
-git clone https://github.com/Perhan35/simple-auth-verifier.git
-cd simple-auth-verifier
-```
-
-2. Create a config directory and example `users.cfg`:
-
-```text
-# config/users.cfg
-# Format: user:token
-alice:ZGVtbzEyMw==
-bob:U29tZVBhc3N3b3Jk
-```
-
-3. Build and run with Docker Compose:
-
-```bash
-docker compose up --build -d
-```
-
-OR
-
-3. Activate Pyenv to work locally
-
-```bash
-pyenv install -s 3.12.0 && \
-pyenv local 3.12.0 && \
-python -m venv venv && \
-source venv/Scripts/activate && \
-pip install --upgrade pip && \
-pip install -r requirements.txt
-```
-
-4. Run it!
-
-```bash
-RELOAD_SECRET="supersecret" uvicorn main:APP --reload
-```
-
-The auth service listens on container port `8000`. By default you can test it on the host at `http://localhost:8000` when running locally.
-
----
-
 ## How it works (summary)
 
 - Admin writes `user:token` into `config/users.cfg`.
@@ -98,7 +51,7 @@ The auth service listens on container port `8000`. By default you can test it on
 
 ---
 
-## Examples — compute the hash (client-side)
+## Compute the hash (client-side)
 
 ### Python
 
@@ -120,11 +73,13 @@ HASH=$(printf "%s:%s" "$USER" "$TOKEN" | openssl dgst -sha256 -hex | awk '{print
 echo $HASH
 ```
 
+The `HASH` should then presented to the verify endpoint, while the `TOKEN` is placed safely into the `users.cfg`. 
+
 ---
 
 ## Curl tests (direct to auth service)
 
-Assume `HASH` contains the computed hex digest.
+`HASH` contains the computed hex digest.
 
 ```bash
 curl -i -H "Authorization: Bearer $HASH" http://localhost:8000/verify
@@ -230,6 +185,83 @@ volumes:
 
 ---
 
+## Docker / Compose examples
+
+A minimal `docker-compose.yml` (example):
+
+```yaml
+services:
+  forwardauth:
+    build: .
+    container_name: forwardauth
+    restart: unless-stopped
+    volumes:
+      - ./config:/config:ro
+    environment:
+      - CONFIG_FILE=/config/users.cfg
+      # - RELOAD_SECRET=some-secret
+    labels:
+      - "traefik.enable=false"
+
+  # example protected service (Ollama)
+  ollama:
+    image: ghcr.io/ollama/ollama:latest
+    container_name: ollama
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.ollama.rule=Host(`ai.example.com`)
+```
+
+---
+
+
+## Quickstart (local, development)
+
+1. Clone the repo:
+
+```bash
+git clone https://github.com/Perhan35/simple-auth-verifier.git
+cd simple-auth-verifier
+```
+
+2. Create a config directory and example `users.cfg`:
+
+```text
+# config/users.cfg
+# Format: user:token
+alice:ZGVtbzEyMw==
+bob:U29tZVBhc3N3b3Jk
+```
+
+3. Build and run with Docker Compose:
+
+```bash
+docker compose up --build -d
+```
+
+OR
+
+3. Activate Pyenv to work locally
+
+```bash
+pyenv install -s 3.12.0 && \
+pyenv local 3.12.0 && \
+python -m venv venv && \
+source venv/Scripts/activate && \
+pip install --upgrade pip && \
+pip install -r requirements.txt
+```
+
+4. Run it!
+
+```bash
+RELOAD_SECRET="supersecret" uvicorn main:APP --reload
+```
+
+The auth service listens on container port `8000`. By default you can test it on the host at `http://localhost:8000` when running locally.
+
+---
+
 ## Security & operational recommendations
 - **Treat `config/users.cfg` as a secret.** Use read-only mounts, OS file permissions, Docker secrets, or a secrets manager for production.  
 - **Do not expose the auth service publicly.** Keep it on the internal network and let Traefik call it. Set the service label `traefik.enable=false`.  
@@ -257,32 +289,3 @@ volumes:
 - Networking issues:
   - Ensure Traefik and `forwardauth` are on the same Docker network. Check service name resolution.
 
----
-
-## Docker / Compose examples
-
-A minimal `docker-compose.yml` (example):
-
-```yaml
-services:
-  forwardauth:
-    build: .
-    container_name: forwardauth
-    restart: unless-stopped
-    volumes:
-      - ./config:/config:ro
-    environment:
-      - CONFIG_FILE=/config/users.cfg
-      # - RELOAD_SECRET=some-secret
-    labels:
-      - "traefik.enable=false"
-
-  # example protected service (Ollama)
-  ollama:
-    image: ghcr.io/ollama/ollama:latest
-    container_name: ollama
-    labels:
-      - "traefik.enable=true"
-      - "traefik.http.routers.ollama.rule=Host(`ai.example.com`)
-
-```

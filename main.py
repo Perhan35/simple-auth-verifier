@@ -21,7 +21,7 @@ if LOG.hasHandlers():
     LOG.handlers.clear()
 
 handler = logging.StreamHandler()
-formatter = logging.Formatter("%(levelname)s    %(asctime)s     %(message)s")
+formatter = logging.Formatter("%(levelname)s:     %(asctime)s     %(message)s")
 handler.setFormatter(formatter)
 LOG.addHandler(handler)
 
@@ -187,6 +187,7 @@ async def verify(request: Request):
             # success: clear failed attempts for this IP
             FAILED_ATTEMPTS.pop(client_ip, None)
             headers = {"X-Forwarded-User": user}
+            LOG.info("Authorized user=%s from %s", user, client_ip)
             return Response(status_code=status.HTTP_200_OK, headers=headers)
         LOG.warning("Hash lookup mismatch for user=%s", user)
 
