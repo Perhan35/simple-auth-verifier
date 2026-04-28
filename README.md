@@ -116,7 +116,7 @@ curl http://localhost:8000/health
 
 ```bash
 # If RELOAD_SECRET=supersecret was set in the container:
-curl -X POST "http://localhost:8000/reload-config" -d "secret=supersecret"
+curl "http://localhost:8000/reload-config?secret=supersecret"
 # returns {"loaded_users": N}
 ```
 
