@@ -67,10 +67,11 @@ print(digest)
 ### Bash / OpenSSL
 
 ```bash
-USER="alice"
-TOKEN="ZGVtbzEyMw=="
+USER="your_name"
+TOKEN=$(openssl rand -base64 24)
 HASH=$(printf "%s:%s" "$USER" "$TOKEN" | openssl dgst -sha256 -hex | awk '{print $2}')
 echo $HASH
+echo $TOKEN
 ```
 
 The `HASH` should then presented to the verify endpoint, while the `TOKEN` is placed safely into the `users.cfg`. 
