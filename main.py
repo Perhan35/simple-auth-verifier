@@ -10,6 +10,12 @@ from typing import Dict
 
 from fastapi import FastAPI, Request, Response, status, Query
 from fastapi.responses import PlainTextResponse, JSONResponse, RedirectResponse
+from pydantic import BaseModel, Field
+
+
+class HashRequest(BaseModel):
+    user: str = Field(..., description="The username")
+    token: str = Field(..., description="The token")
 
 # ----------------------------
 # Logging setup
@@ -222,14 +228,40 @@ async def reload_config(request: Request, secret: str | None = Query(None)):
     load_config(CONFIG_FILE)
     return {"loaded_users": len(USER_TO_TOKEN)}
 
+@APP.post("/hash")
+async def generate_hash(request: Request):
+    """Generate a hash for a username and token.
+    Protected with RELOAD_SECRET.
+    Expects JSON: {"user": "username", "token": "token", "secret": "reload_secret"}.
+    """
+    if RELOAD_SECRET:
+        data = await request.json()
+        provided_secret = data.get("secret", "")
+        if not provided_secret or not hmac.compare_digest(provided_secret, RELOAD_SECRET):
+            return JSONResponse({"error": "forbidden"}, status_code=403)
+
+    data = await request.json()
+    user = data.get("user", "")
+    token = data.get("token", "")
+
+    if not user or not token:
+        return JSONResponse({"error": "missing user or token"}, status_code=400)
+
+    hashed = hash_token(user, token)
+    return {"username": user, "hash": hashed}
+
+
 @APP.get("/hash")
-async def generate_hash(
+async def generate_hash_get(
     user: str = Query(..., description="The username"),
     token: str = Query(..., description="The token"),
     secret: str = Query(..., description="The reload secret")
 ):
     """Generate a hash for a username and token.
     Protected with RELOAD_SECRET.
+    DEPRECATED: This GET endpoint is kept for backward compatibility but should not be used.
+    Tokens in query parameters leak into server and proxy logs.
+    Please use POST /hash with JSON body instead.
     """
     if RELOAD_SECRET:
         provided = secret or ""

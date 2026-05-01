@@ -14,7 +14,7 @@ Admins keep a simple `user:token` config file; clients compute `sha256("user:tok
   - `POST/GET /verify` — Traefik ForwardAuth endpoint (accepts common HTTP methods).
   - `GET /health` — simple health check.
   - `POST /reload-config` — optional config reload (protected by `RELOAD_SECRET` if set).
-  - `GET /hash` — generate SHA-256 hash for `user:token` (protected by `RELOAD_SECRET`).
+  - `POST /hash` — generate SHA-256 hash for `user:token` (protected by `RELOAD_SECRET`).
 - Runs as a Docker container (Python 3.12, FastAPI + Uvicorn).
 - Config format is human-friendly: `user:token` (one per line).
 
@@ -132,7 +132,9 @@ $env:RELOAD_SECRET="supersecret"     # PowerShell
 ### Generate hash (if `RELOAD_SECRET` is set)
 
 ```bash
-curl "http://localhost:8000/hash?user=alice&token=ZGVtbzEyMw==&secret=supersecret"
+curl -X POST "http://localhost:8000/hash" \
+  -H "Content-Type: application/json" \
+  -d '{"user": "alice", "token": "ZGVtbzEyMw==", "secret": "supersecret"}'
 # returns {"username": "alice", "hash": "<sha256-hex>"}
 ```
 
@@ -144,12 +146,17 @@ A convenience endpoint to compute the SHA-256 hex digest of `user:token`.
 
 ### Request
 
-- **Method:** `GET`
+- **Method:** `POST`
 - **Path:** `/hash`
-- **Query parameters:**
-  - `user` (required)
-  - `token` (required)
-  - `secret` (required iff `RELOAD_SECRET` is set)
+- **Content-Type:** `application/json`
+- **Body:**
+  ```json
+  {
+    "user": "<username>",
+    "token": "<token>",
+    "secret": "<RELOAD_SECRET>"
+  }
+  ```
 
 ### Response
 
@@ -157,7 +164,14 @@ A convenience endpoint to compute the SHA-256 hex digest of `user:token`.
 {"username": "<user>", "hash": "<sha256-hex>"}
 ```
 
-**Notes:** This is for testing/bootstrapping; keep it on an internal network and protect it with `RELOAD_SECRET`. If your token contains special characters, URL-encode it in the query string.
+**Notes:** This is for testing/bootstrapping; keep it on an internal network and protect it with `RELOAD_SECRET`. The GET method is deprecated and kept for backward compatibility only.
+
+**Deprecated GET method:**
+```bash
+curl "http://localhost:8000/hash?user=alice&token=ZGVtbzEyMw==&secret=supersecret"
+# returns {"username": "alice", "hash": "<sha256-hex>"}
+```
+**Warning:** Tokens in query parameters leak into server and proxy logs. Use POST instead.
 
 ---
 
